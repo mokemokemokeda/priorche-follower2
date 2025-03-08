@@ -19,7 +19,7 @@ json_data = json.loads(google_credentials_json)
 # Google Drive API 認証
 credentials = service_account.Credentials.from_service_account_info(json_data)
 drive_service = build("drive", "v3", credentials=credentials)
-print("Google Drive API 認証完了")
+print("✅ Google Drive API の認証が完了しました！")
 
 # Google Drive からファイル ID を取得する関数
 def get_file_id(file_name):
@@ -52,9 +52,9 @@ url = "https://api.twitter.com/2/users/by/username/"
 file_id = get_file_id("priorche.csv")
 if file_id:
     df = pd.read_csv(f"https://drive.google.com/uc?id={file_id}")
-    print("Twitterアカウントリスト取得完了")
+    print("✅ Twitterアカウントリストを取得しました！")
 else:
-    raise FileNotFoundError("priorche.csv が見つかりません。")
+    raise FileNotFoundError("twitter_accounts.csv が見つかりません。")
 
 # 日付取得
 today = datetime.today().strftime("%Y/%m/%d")
@@ -68,7 +68,7 @@ for username in df["username"]:
         user_data = response.json()
         followers_count = user_data["data"]["public_metrics"]["followers_count"]
         followers_data[username] = followers_count
-        print(f"@{username} のフォロワー数: {followers_count}")
+        print(f"✅ @{username} のフォロワー数: {followers_count}")
     else:
         print(f"⚠️ エラー: {response.status_code} - @{username}")
     time.sleep(1)  # API制限対策
@@ -76,7 +76,7 @@ for username in df["username"]:
 new_data = pd.DataFrame([followers_data])
 
 # 記録ファイルの取得と更新
-history_file = "priorche.xlsx"
+history_file = "priorche_follower_shukei.xlsx"  # ファイル名を変更
 history_id = get_file_id(history_file)
 if history_id:
     file_metadata = drive_service.files().get(fileId=history_id).execute()
@@ -88,17 +88,20 @@ if history_id:
 else:
     history_df = pd.DataFrame()
 
-# 各列にデータを整列
+# 各列にデータを整列（CSVのアカウント列 + 日付）
 df_columns = df["username"].tolist() + ["Date"]
 if history_df.empty:
     history_df = pd.DataFrame(columns=df_columns)
 
+# 新しい行としてデータを追加
 history_df = pd.concat([history_df, new_data], ignore_index=True)
+print("📊 更新後のデータ:")
+print(history_df)
 
-# ExcelファイルをGoogle Driveにアップロード
+# ExcelファイルをGoogle Driveにアップロード（Sheet1に書き出す）
 with io.BytesIO() as fh:
     with pd.ExcelWriter(fh, engine='xlsxwriter') as writer:
-        history_df.to_excel(writer, index=False)
+        history_df.to_excel(writer, index=False, sheet_name="Sheet2")
     fh.seek(0)
     media = MediaIoBaseUpload(fh, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     if history_id:
@@ -107,4 +110,4 @@ with io.BytesIO() as fh:
         file_metadata = {"name": history_file, "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
         drive_service.files().create(body=file_metadata, media_body=media).execute()
 
-print("フォロワー数を更新しました")
+print("✅ フォロワー数を更新しました！")
